@@ -1,0 +1,26 @@
+[project]
+name = "reviewmywork"
+version = "0.1.0"
+description = "AI Code Review Agent"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "aisuite[all]>=0.1.11",
+    "gitpython>=3.1.45",
+    "pre-commit>=4.2.0",
+    "pydantic>=2.11.7",
+    "python-dotenv>=1.1.1",
+    "rich>=14.1.0",
+    "typer>=0.16.0",
+    "unidiff>=0.7.5",
+]
+
+[project.scripts]
+reviewmywork = "reviewmywork.main:app"
+rmw = "reviewmywork.main:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+]
