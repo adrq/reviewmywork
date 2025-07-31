@@ -25,6 +25,8 @@ app = typer.Typer(
 )
 console = Console()
 
+VERSION = "0.1.1"
+
 
 def load_env_config() -> Dict[str, Any]:
     """Load configuration from environment variables."""
@@ -154,7 +156,7 @@ def review(
 
     try:
         config = load_env_config()
-        logger.info("🚀 ReviewMyWork v0.1.0 • %s", model)
+        logger.info(f"🚀 ReviewMyWork v{VERSION} • %s", model)
 
     except Exception as e:
         console.print(f"[red]Configuration error: {str(e)}[/red]")
@@ -211,9 +213,9 @@ def version():
     """Show version information."""
     console.print(
         Panel(
-            "[bold blue]ReviewMyWork[/bold blue] - AI Code Review Agent\n\n"
-            "[dim]Version: 0.1.0[/dim]\n"
-            "[dim]A sophisticated code review agent powered by LLMs[/dim]",
+            f"[bold blue]ReviewMyWork[/bold blue] - AI Code Review Agent\n\n"
+            f"[dim]Version: {VERSION}[/dim]\n"
+            f"[dim]A sophisticated code review agent powered by LLMs[/dim]",
             title="ℹ️ Version",
             border_style="blue",
         )
