@@ -1,0 +1,58 @@
+{
+  "name": "reviewmywork",
+  "displayName": "Review My Work",
+  "version": "0.2.0",
+  "description": "AI Code Review Agent",
+  "publisher": "adrq",
+  "engines": {
+    "vscode": "^1.85.0",
+    "node": ">=20.0.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+    "build-extension": "deno run --allow-read --allow-write --allow-run scripts/build-extension.ts",
+    "build-all": "deno run --allow-read --allow-write --allow-run scripts/build-all.ts",
+    "watch": "npm run compile -- --watch",
+    "test": "deno task test",
+    "test-all": "deno task test-all",
+    "test-watch": "deno task test-watch",
+    "test-vscode": "node --test tests/vscode/**/*.test.js",
+    "package": "vsce package",
+    "lint": "eslint src/ --ext .ts",
+    "fmt": "prettier --write src/ tests/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@themaximalist/llm.js": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.20.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0"
+  },
+  "overrides": {
+    "eslint-plugin-promise": "^6.1.1"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "reviewmywork.review",
+        "title": "Review My Work"
+      }
+    ]
+  }
+}

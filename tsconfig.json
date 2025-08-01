@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "outDir": "./out",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/core/*": ["./src/core/*"]
+    },
+    "types": ["vscode", "node"]
+  },
+  "include": [
+    "src/extension.ts",
+    "src/core/version.ts"
+  ],
+  "exclude": [
+    "src/cli.ts",
+    "node_modules",
+    "out",
+    "python-legacy",
+    "tests"
+  ]
+}

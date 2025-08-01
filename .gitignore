@@ -16,6 +16,17 @@ htmlcov/
 .pytest_cache/
 *.cover
 
+# Node.js
+node_modules/
+npm-debug.log*
+
+# TypeScript / Build outputs
+out/
+dist/bin/
+
+# VSCode extension
+*.vsix
+
 # Environments
 .env
 .env.local
@@ -26,7 +37,6 @@ venv/
 .mypy_cache/
 
 # IDEs
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -35,4 +45,3 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
-
