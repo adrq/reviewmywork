@@ -30,7 +30,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@themaximalist/llm.js": "^1.0.1"
+    "@ai-sdk/anthropic": "^2.0.0",
+    "@ai-sdk/azure": "^2.0.0",
+    "@ai-sdk/openai": "^2.0.0",
+    "ai": "^5.0.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -52,7 +56,59 @@
       {
         "command": "reviewmywork.review",
         "title": "Review My Work"
+      },
+      {
+        "command": "reviewmywork.setApiKey",
+        "title": "Review My Work: Set API Key"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Review My Work",
+      "properties": {
+        "reviewmywork.provider": {
+          "type": "string",
+          "enum": ["azure", "openai", "anthropic"],
+          "description": "LLM provider to use. Required."
+        },
+        "reviewmywork.model": {
+          "type": "string",
+          "description": "Model name for the selected provider (e.g., gpt-4, claude-3-sonnet). Required."
+        },
+        "reviewmywork.azureResourceName": {
+          "type": "string",
+          "description": "Azure OpenAI resource name (required when using azure provider)"
+        },
+        "reviewmywork.azureDeployment": {
+          "type": "string",
+          "description": "Azure OpenAI deployment name (required when using azure provider)"
+        },
+        "reviewmywork.azureApiVersion": {
+          "type": "string",
+          "default": "2024-02-15-preview",
+          "description": "Azure OpenAI API version (optional, has default)"
+        },
+        "reviewmywork.toolTimeout": {
+          "type": "number",
+          "default": 120,
+          "minimum": 1,
+          "maximum": 3600,
+          "description": "Timeout for tool execution in seconds (optional, default: 120)"
+        },
+        "reviewmywork.maxTurns": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 50,
+          "description": "Maximum number of LLM turns for analysis (optional, default: 10)"
+        },
+        "reviewmywork.llmTimeout": {
+          "type": "number",
+          "default": 180,
+          "minimum": 1,
+          "maximum": 3600,
+          "description": "Timeout for LLM calls in seconds (optional, default: 180)"
+        }
+      }
+    }
   }
 }

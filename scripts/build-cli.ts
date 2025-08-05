@@ -6,7 +6,7 @@ async function buildCLI() {
   // Create output directory
   await Deno.mkdir('dist/bin', { recursive: true });
 
-  const permissions = ['--allow-read', '--allow-write', '--allow-run', '--allow-env'];
+  const permissions = ['--allow-read', '--allow-write', '--allow-run', '--allow-env', '--allow-net'];
 
   // Build reviewmywork
   console.log('📦 Building reviewmywork...');
