@@ -63,14 +63,17 @@ export class VercelLLMProvider implements LLMProvider {
 
     console.log(`📡 Making AI SDK generateText call...`);
     const result = await (generateText as any)(generateParams);
-    
+
     console.log(`✅ AI SDK generateText completed`);
     console.log(`📝 Response text length: ${result.text?.length || 0} characters`);
     console.log(`🔧 Tool calls returned: ${result.toolCalls?.length || 0}`);
-    
+
     // Debug: Log all properties of the result to understand AI SDK v5 structure
     console.log(`🔍 Full result properties:`, Object.keys(result));
-    console.log(`🔍 resolvedOutput:`, result.resolvedOutput ? typeof result.resolvedOutput : 'undefined');
+    console.log(
+      `🔍 resolvedOutput:`,
+      result.resolvedOutput ? typeof result.resolvedOutput : 'undefined'
+    );
     if (result.resolvedOutput && typeof result.resolvedOutput === 'string') {
       console.log(`🔍 resolvedOutput length:`, result.resolvedOutput.length);
     }
@@ -87,24 +90,27 @@ export class VercelLLMProvider implements LLMProvider {
         }
       }
     }
-    
+
     if (result.toolCalls && result.toolCalls.length > 0) {
-      console.log(`🔧 Tool calls:`, result.toolCalls.map((tc: any) => ({
-        id: tc.toolCallId,
-        name: tc.toolName,
-        input: tc.input
-      })));
+      console.log(
+        `🔧 Tool calls:`,
+        result.toolCalls.map((tc: any) => ({
+          id: tc.toolCallId,
+          name: tc.toolName,
+          input: tc.input,
+        }))
+      );
     }
 
     // Extract text from AI SDK v5 result - check text, resolvedOutput, and steps
     let finalText = result.text || '';
-    
+
     // Check resolvedOutput if no direct text
     if (!finalText && result.resolvedOutput && typeof result.resolvedOutput === 'string') {
       finalText = result.resolvedOutput;
       console.log(`📋 Extracted text from resolvedOutput: ${finalText.length} characters`);
     }
-    
+
     // If no direct text but we have steps, extract text from the last text step
     if (!finalText && result.steps && result.steps.length > 0) {
       // Find the last text step (AI SDK v5 stores final text in steps)
@@ -133,7 +139,7 @@ export class VercelLLMProvider implements LLMProvider {
   async generateObject<T>(prompt: string, schema: any): Promise<T> {
     console.log(`🔍 generateObject: Starting with prompt length: ${prompt.length}`);
     console.log(`🔍 generateObject: Schema type: ${schema?.constructor?.name || typeof schema}`);
-    
+
     try {
       const result = await (generateObject as any)({
         model: this.model,
@@ -147,7 +153,7 @@ export class VercelLLMProvider implements LLMProvider {
     } catch (error: any) {
       console.error(`❌ generateObject: Error:`, error.message);
       console.error(`❌ generateObject: Full error:`, error);
-      
+
       // If it's a schema validation error, try to see what was actually generated
       if (error.message?.includes('schema') || error.message?.includes('object')) {
         console.error(`❌ generateObject: This looks like a schema validation error`);
@@ -155,7 +161,7 @@ export class VercelLLMProvider implements LLMProvider {
           console.error(`❌ generateObject: Error response:`, error.response || error.data);
         }
       }
-      
+
       throw error;
     }
   }
@@ -167,7 +173,7 @@ export class VercelLLMProvider implements LLMProvider {
       // Convert our JSON Schema tools to AI SDK v5 format with Zod schemas and execute functions
       let inputSchema;
       let executeFunction;
-      
+
       switch (tool.function.name) {
         case 'read_file':
           inputSchema = z.object({
@@ -260,10 +266,12 @@ export class VercelLLMProvider implements LLMProvider {
       };
     }
 
-    console.log(`🔍 Configured ${Object.keys(vercelTools).length} tools for AI SDK v5:`, Object.keys(vercelTools));
+    console.log(
+      `🔍 Configured ${Object.keys(vercelTools).length} tools for AI SDK v5:`,
+      Object.keys(vercelTools)
+    );
     return vercelTools;
   }
-
 
   private createVercelModel(config: Settings) {
     switch (config.provider) {

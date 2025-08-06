@@ -13,7 +13,7 @@ interface CLIArgs {
 
 function parseArgs(args: string[]): CLIArgs {
   console.log(`🔍 parseArgs: Input args:`, args);
-  
+
   const result: CLIArgs = {
     repoPath: '.',
   };
@@ -101,7 +101,7 @@ async function runReview(repoPath: string, base: string) {
     // Get git diff
     console.log(`🔍 Analyzing changes from ${base} to working directory`);
     const diffContent = await getGitDiff(repoPath, base);
-    
+
     // Debug: Show diff info
     console.log(`📊 Diff length: ${diffContent.length} characters`);
     if (diffContent.length === 0) {
