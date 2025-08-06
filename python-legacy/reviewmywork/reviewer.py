@@ -42,7 +42,7 @@ Tools:
 - search_content: Search repository content using ripgrep. Returns matches with file paths, line numbers, and context in format: 'file:line:col:content' for matches, 'file-line-context' for context lines
 - git_history: Get git history including commit log, branch info, and change statistics
 
-IMPORTANT: 
+IMPORTANT:
 - Files may be added, modified, or DELETED - check the change type provided
 - DO NOT try to read deleted files with read_file - they no longer exist
 - Focus your analysis on files that exist and were modified or added

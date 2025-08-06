@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "@themaximalist/llm.js": "npm:@themaximalist/llm.js@^1.0.1",
+    "@/": "./src/",
+    "@/core/": "./src/core/",
+    "@/types": "./src/core/types.ts"
+  }
+}

@@ -1,6 +1,7 @@
 # ReviewMyWork - AI Code Review Agent
 
-An intelligent code review agent that orchestrates LLM tool calls to provide comprehensive analysis of your git changes.
+An intelligent code review agent that orchestrates LLM tool calls to provide comprehensive analysis
+of your git changes.
 
 ![ReviewMyWork Demo](demo.png)
 
@@ -17,13 +18,17 @@ uv tool install reviewmywork
 ## Key Features
 
 - **LLM Agent Architecture**: Orchestrates multiple tool calls for thorough analysis
-- **Rich Terminal UI**: Structured output with confidence scores, detailed issues, and actionable suggestions  
-- **Multi-Provider Support**: Works with any aisuite-compatible LLM (Anthropic, OpenAI, Azure, Ollama, etc.)
+- **Rich Terminal UI**: Structured output with confidence scores, detailed issues, and actionable
+  suggestions
+- **Multi-Provider Support**: Works with any aisuite-compatible LLM (Anthropic, OpenAI, Azure,
+  Ollama, etc.)
 - **Minimal & Fast**: Focused on core functionality
 
 ## How It Works
 
-ReviewMyWork parses your git diff, builds some context, and then allows the LLM to intelligently use tools like `read_file`, `search_content`, and `git_history` through multi-turn conversations to understand context and provide detailed reviews with confidence scoring.
+ReviewMyWork parses your git diff, builds some context, and then allows the LLM to intelligently use
+tools like `read_file`, `search_content`, and `git_history` through multi-turn conversations to
+understand context and provide detailed reviews with confidence scoring.
 
 ## Configuration
 
@@ -54,7 +59,7 @@ Or use a `.env` file in your project root.
 reviewmywork review . --base main --model your-model
 
 # Review specific repository
-reviewmywork review --base develop --model openai:gpt-4.1 /path/to/repo 
+reviewmywork review --base develop --model openai:gpt-4.1 /path/to/repo
 
 # Get help
 reviewmywork --help
@@ -78,3 +83,7 @@ reviewmywork review . --base main --model anthropic:claude-3-5-sonnet
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+**Note**: This project is currently being migrated from Python to TypeScript. The Python version in `python-legacy/` remains the stable version while the TypeScript rewrite is in development.

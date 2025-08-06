@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "lib": ["DOM", "ES2022", "deno.ns"],
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true
+  },
+  "importMap": "./import_map.json",
+  "nodeModulesDir": "auto",
+  "tasks": {
+    "dev": "deno run --watch src/cli.ts",
+    "test": "deno test --allow-read tests/",
+    "test-watch": "deno test --watch --allow-read tests/",
+    "test-all": "deno run --allow-read --allow-write --allow-run scripts/test-all.ts",
+    "build-cli": "deno run --allow-read --allow-write --allow-run scripts/build-cli.ts",
+    "build-all": "deno run --allow-read --allow-write --allow-run scripts/build-all.ts",
+    "check": "deno check src/**/*.ts"
+  },
+  "test": {
+    "include": ["tests/**/*.test.ts"],
+    "exclude": ["node_modules/", "out/"]
+  }
+}

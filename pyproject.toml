@@ -1,7 +1,7 @@
 [project]
 name = "reviewmywork"
-version = "0.1.1"
-description = "AI Code Review Agent"
+version = "0.2.0"
+description = "AI Code Review Agent (TypeScript rewrite in progress)"
 authors = [{name = "Adrian Quiroga", email = "git@adrq.net"}]
 readme = "README.md"
 requires-python = ">=3.10"
@@ -18,9 +18,18 @@ dependencies = [
     "unidiff>=0.7.5",
 ]
 
+# Keep existing scripts for now, will update in Phase 5
 [project.scripts]
-reviewmywork = "reviewmywork.main:app"
+reviewmywork = "reviewmywork.main:app"  # Legacy Python entry point
 rmw = "reviewmywork.main:app"
+
+# Tell uv where to find the Python package during migration
+[tool.setuptools.packages.find]
+where = ["python-legacy"]
+
+# Future: Include compiled binaries for distribution
+# [tool.setuptools.data-files]
+# "bin" = ["dist/bin/reviewmywork*"]
 
 [dependency-groups]
 dev = [
