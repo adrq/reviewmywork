@@ -26,7 +26,7 @@
     "test-vscode": "node --test tests/vscode/**/*.test.js",
     "package": "vsce package",
     "lint": "eslint src/ --ext .ts",
-    "fmt": "prettier --write src/ tests/",
+    "fmt": "prettier --write src/ tests/ scripts/",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
