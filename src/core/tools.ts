@@ -127,7 +127,7 @@ async function runCommand(command: string[], cwd: string, timeoutMs: number): Pr
 
 export async function readFile(filePath: string, context: ToolContext): Promise<string> {
   console.log(`🔧 readFile: Called with filePath='${filePath}', repoRoot='${context.repoRoot}'`);
-  
+
   const sanitizedPath = sanitizePath(filePath, context.repoRoot);
   if (sanitizedPath === null) {
     return `Error: Invalid file path '${filePath}' - path traversal detected or path outside repository`;
@@ -140,7 +140,9 @@ export async function readFile(filePath: string, context: ToolContext): Promise<
     if (typeof Deno !== 'undefined') {
       try {
         const content = await Deno.readTextFile(fullPath);
-        console.log(`🔧 readFile: Successfully read ${content.length} characters from '${fullPath}'`);
+        console.log(
+          `🔧 readFile: Successfully read ${content.length} characters from '${fullPath}'`
+        );
         return content;
       } catch (error) {
         if (error instanceof Deno.errors.NotFound) {
@@ -189,11 +191,14 @@ export async function listDirectory(directoryPath: string, context: ToolContext)
 }
 
 export async function findFiles(pattern: string, context: ToolContext): Promise<string> {
-  console.log(`🔧 findFiles: Searching for pattern '${pattern}' in repo root '${context.repoRoot}'`);
-  
-  const command = isWindows()
-    ? ['cmd', '/c', `dir /s /b "${pattern}"`]
-    : ['find', '.', '-name', pattern, '-type', 'f'];
+  console.log(
+    `🔧 findFiles: Searching for pattern '${pattern}' in repo root '${context.repoRoot}'`
+  );
+
+  // Use git ls-files which respects .gitignore
+  // -c shows cached/tracked files, -o shows others/untracked files
+  // --exclude-standard respects .gitignore and other exclusion files
+  const command = ['git', 'ls-files', '-c', '-o', '--exclude-standard', '--', pattern];
 
   const result = await runCommand(command, context.repoRoot, context.toolTimeout);
 
@@ -201,23 +206,20 @@ export async function findFiles(pattern: string, context: ToolContext): Promise<
     return `Error: Cannot find files matching '${pattern}': ${result.slice(7)}`;
   }
 
-  // Convert paths to be relative to repo root for better LLM understanding
+  // Git ls-files already returns paths relative to repo root
+  // Just filter out empty lines
   const relativePaths = result
     .split('\n')
-    .filter(line => line.trim())
-    .map(line => {
-      // Remove leading './' if present (from find command)
-      return line.startsWith('./') ? line.slice(2) : line;
-    })
+    .filter((line) => line.trim())
     .join('\n');
 
-  console.log(`🔧 findFiles: Found ${relativePaths.split('\n').length} files`);
+  console.log(`🔧 findFiles: Found ${relativePaths.split('\n').filter((p) => p).length} files`);
   return relativePaths;
 }
 
 export async function searchContent(query: string, context: ToolContext): Promise<string> {
   console.log(`🔧 searchContent: Searching for '${query}' in repo root '${context.repoRoot}'`);
-  
+
   const command = [
     'rg',
     '--max-count',
@@ -227,7 +229,7 @@ export async function searchContent(query: string, context: ToolContext): Promis
     '--color',
     'never',
     query,
-    '.',  // Search current directory (which will be context.repoRoot due to cwd)
+    '.', // Search current directory (which will be context.repoRoot due to cwd)
   ];
 
   const result = await runCommand(command, context.repoRoot, context.toolTimeout);
@@ -239,8 +241,8 @@ export async function searchContent(query: string, context: ToolContext): Promis
   // Convert paths to be relative to repo root for better LLM understanding
   const relativeResults = result
     .split('\n')
-    .filter(line => line.trim())
-    .map(line => {
+    .filter((line) => line.trim())
+    .map((line) => {
       // Remove leading './' if present (from ripgrep)
       return line.startsWith('./') ? line.slice(2) : line;
     })
@@ -320,4 +322,4 @@ export const tools = [
       },
     },
   },
-];;
+];

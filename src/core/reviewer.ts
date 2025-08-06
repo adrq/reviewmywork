@@ -10,6 +10,7 @@ import { Settings } from './config.ts';
 export class ReviewOrchestrator {
   private toolContext: ToolContext;
   private settings: Settings;
+  private maxTokensUsed = 0;
 
   constructor(
     private provider: LLMProvider,
@@ -21,7 +22,7 @@ export class ReviewOrchestrator {
       toolTimeout: settings.toolTimeout,
     };
     this.settings = settings;
-    
+
     // Set tool context for Vercel provider if available
     if ('setToolContext' in this.provider) {
       (this.provider as any).setToolContext(this.toolContext);
@@ -56,11 +57,33 @@ export class ReviewOrchestrator {
 
     try {
       for (let turn = 0; turn < maxTurns; turn++) {
-        console.log(`🔄 Analysis turn ${turn + 1}/${maxTurns} (${totalToolCalls} tools used so far)`);
+        console.log(
+          `🔄 Analysis turn ${turn + 1}/${maxTurns} (${totalToolCalls} tools used so far)`
+        );
+
+        // Compress message history and track tokens
+        const compressedMessages = this.compressMessageHistory(messages);
+
+        // Estimate total tokens
+        let totalTokens = this.estimateTokens(systemPrompt);
+        for (const msg of compressedMessages) {
+          totalTokens += this.estimateTokens(msg.content);
+        }
+
+        // Track maximum tokens used
+        this.maxTokensUsed = Math.max(this.maxTokensUsed, totalTokens);
+
+        // Log token usage
+        console.log(
+          `📊 Token estimate: ${totalTokens.toLocaleString()} tokens (${Math.round(totalTokens / 10000) / 100}M)`
+        );
+        if (totalTokens > 800000) {
+          console.warn(`⚠️  Approaching token limit: ${totalTokens.toLocaleString()} / 1,000,000`);
+        }
 
         const result = await this.makeRetryingLLMCall(async () => {
           return this.provider.generateText({
-            messages: messages,
+            messages: compressedMessages,
             tools: this.getToolDefinitions(),
             systemPrompt,
             temperature: 0.1,
@@ -78,7 +101,7 @@ export class ReviewOrchestrator {
         if (result.toolCalls && result.toolCalls.length > 0) {
           console.log(`🔧 Processing ${result.toolCalls.length} tool calls...`);
           totalToolCalls += result.toolCalls.length;
-          
+
           // Add tool invocations to the last assistant message
           const lastMessage = messages[messages.length - 1];
           if (lastMessage) {
@@ -91,74 +114,109 @@ export class ReviewOrchestrator {
             const toolResult = await this.executeToolCall(toolCall);
             toolResults += `Tool ${toolCall.toolName} result:\n${toolResult}\n\n`;
           }
-          
+
           if (toolResults) {
             messages.push({
               role: 'user',
-              content: `Tool results:\n\n${toolResults}`,
+              content: `Tool results:
+
+${toolResults}`,
             });
+
+            // Log current message history size
+            const currentTokens = messages.reduce(
+              (sum, msg) => sum + this.estimateTokens(msg.content),
+              0
+            );
+            console.log(
+              `📈 Message history: ${messages.length} messages, ~${currentTokens.toLocaleString()} tokens`
+            );
           }
-          
+
           // After tool execution, check if we have sufficient understanding
-          const hasExploredStructure = messages.some(m => 
-            m.content?.includes('explored the codebase structure') || 
-            m.content?.includes('appears to be')
+          const hasExploredStructure = messages.some(
+            (m) =>
+              m.content?.includes('explored the codebase structure') ||
+              m.content?.includes('appears to be')
           );
-          const hasAnalyzedChanges = messages.some(m => 
-            m.content?.includes('analyzed the changes') ||
-            m.content?.includes('files mentioned in the diff')
+          const hasAnalyzedChanges = messages.some(
+            (m) =>
+              m.content?.includes('analyzed the changes') ||
+              m.content?.includes('files mentioned in the diff')
           );
-          
-          if (!hasExploredStructure && totalToolCalls < 5) {
+
+          if (totalToolCalls < 3) {
+            // Force initial exploration
             messages.push({
               role: 'user',
-              content: 'Continue with Phase 1: Explore the codebase structure first to understand the project context. Use list_directory and find_files to understand the repository organization.',
+              content:
+                'You must use tools to explore the codebase. Start with list_directory on "." to see the project structure, then use find_files to locate configuration files like "*.json" or "*.config.*".',
             });
-          } else if (!hasAnalyzedChanges && totalToolCalls < 10) {
+          } else if (!hasExploredStructure && totalToolCalls < 8) {
             messages.push({
               role: 'user',
-              content: 'Continue with Phase 2: Now analyze the specific changes. Read the files mentioned in the diff and explore related code.',
+              content:
+                'Continue with Phase 1: Explore the codebase structure first to understand the project context. Use list_directory and find_files to understand the repository organization.',
+            });
+          } else if (!hasAnalyzedChanges && totalToolCalls < 15) {
+            messages.push({
+              role: 'user',
+              content:
+                'Continue with Phase 2: Now analyze the specific changes. Read the files mentioned in the diff and explore related code.',
             });
           } else if (hasExploredStructure && hasAnalyzedChanges && result.text.length < 500) {
             messages.push({
-              role: 'user', 
-              content: 'You have gathered sufficient context. Now provide your comprehensive final analysis with specific findings based on your understanding of both the codebase and the changes.',
+              role: 'user',
+              content:
+                'You have gathered sufficient context. Now provide your comprehensive final analysis with specific findings based on your understanding of both the codebase and the changes.',
             });
           }
         } else {
           // No more tool calls - check if we have sufficient analysis
-          const hasExploredStructure = messages.some(m => 
-            m.content?.includes('explored the codebase structure') || 
-            m.content?.includes('appears to be')
+          const hasExploredStructure = messages.some(
+            (m) =>
+              m.content?.includes('explored the codebase structure') ||
+              m.content?.includes('appears to be')
           );
-          const hasAnalyzedChanges = messages.some(m => 
-            m.content?.includes('analyzed the changes') ||
-            m.content?.includes('files mentioned in the diff')
+          const hasAnalyzedChanges = messages.some(
+            (m) =>
+              m.content?.includes('analyzed the changes') ||
+              m.content?.includes('files mentioned in the diff')
           );
-          const hasComprehensiveAnalysis = result.text.length > 500 && 
-            result.text.toLowerCase().includes('security') &&
-            result.text.toLowerCase().includes('recommendation');
-          
+
+          // More lenient check for comprehensive analysis
+          const hasComprehensiveAnalysis = result.text.length > 2000 && totalToolCalls >= 10;
+
           if (hasExploredStructure && hasAnalyzedChanges && hasComprehensiveAnalysis) {
-            console.log(`✅ Analysis complete: ${totalToolCalls} tools used, ${result.text.length} character response`);
+            console.log(
+              `✅ Analysis complete: ${totalToolCalls} tools used, ${result.text.length} character response, max tokens: ${this.maxTokensUsed.toLocaleString()} (${(this.maxTokensUsed / 1000000).toFixed(2)}M)`
+            );
             return this.formatAnalysisResult(messages, result.text);
+          } else if (totalToolCalls < 5) {
+            // Force tool usage if not enough tools have been called
+            messages.push({
+              role: 'user',
+              content: `IMPORTANT: You must use tools to analyze the code. You've only used ${totalToolCalls} tools so far. Use list_directory to explore directories, find_files to locate files, read_file to read content, and search_content to find patterns. DO NOT just write analysis without using tools.`,
+            });
           } else if (!hasExploredStructure) {
             // Need to explore codebase structure
             messages.push({
               role: 'user',
-              content: `You need to understand the codebase first. Use list_directory and find_files to explore the repository structure and understand the project context.`,
+              content: `You need to understand the codebase first. Use list_directory and find_files to explore the repository structure and understand the project context. You must call these tools, not just describe what you would do.`,
             });
           } else if (!hasAnalyzedChanges) {
             // Need to analyze the actual changes
             messages.push({
               role: 'user',
-              content: 'Now analyze the specific changes in the diff. Read the changed files and understand what was modified and why.',
+              content:
+                'Now analyze the specific changes in the diff. Use read_file to read the changed files and search_content to find related code. You must call these tools.',
             });
           } else {
             // Need more comprehensive analysis
             messages.push({
               role: 'user',
-              content: 'Provide a more comprehensive analysis. Include specific findings about security, bugs, performance, and code quality, with actionable recommendations based on the codebase context.',
+              content:
+                'Continue exploring with tools. Use read_file to read more files, search_content to find patterns, and list_directory to explore more directories. You need at least 10 tool calls for a thorough review.',
             });
           }
         }
@@ -166,10 +224,13 @@ export class ReviewOrchestrator {
 
       // If we've reached max turns, get final summary
       console.log(`⏰ Reached max turns (${maxTurns}), requesting final summary...`);
+
+      // Compress messages for final summary
+      const compressedMessages = this.compressMessageHistory(messages);
       const finalResult = await this.makeRetryingLLMCall(async () => {
         return this.provider.generateText({
           messages: [
-            ...messages,
+            ...compressedMessages,
             {
               role: 'user',
               content: `Based on your exploration of the codebase and analysis using ${totalToolCalls} tools, provide your comprehensive final code review.
@@ -187,7 +248,7 @@ Include analysis of security, bugs, performance, code quality, and actionable re
           maxTokens: 4000,
         });
       });
-      
+
       return this.formatAnalysisResult(messages, finalResult.text);
     } catch (error: any) {
       throw new Error(`Error during analysis: ${error.message}`);
@@ -218,7 +279,7 @@ Generate a structured JSON review that reflects your understanding of:
   "issues": [
     {
       "type": "bug|security|performance|style|maintainability|testing",
-      "severity": "critical|high|medium|low", 
+      "severity": "critical|high|medium|low",
       "title": "Short, specific issue description (max 100 chars)",
       "description": "Detailed explanation including: (1) what the issue is, (2) why it's problematic in this codebase, (3) how it relates to existing patterns",
       "file": "exact/path/from/diff.ts",
@@ -237,7 +298,7 @@ Generate a structured JSON review that reflects your understanding of:
   "suggestions": [
     {
       "type": "improvement|refactor|testing|documentation",
-      "title": "Enhancement that fits the project (max 100 chars)", 
+      "title": "Enhancement that fits the project (max 100 chars)",
       "description": "Detailed suggestion that: (1) explains the improvement, (2) references similar patterns in the codebase, (3) provides specific implementation guidance",
       "priority": "high|medium|low"
     }
@@ -254,7 +315,7 @@ Generate a structured JSON review that reflects your understanding of:
 
 ## Examples of Good Contextual Feedback
 - "This breaks the existing error handling pattern used throughout the /src/core directory"
-- "Consider using the project's established validation schema pattern seen in schemas.ts"  
+- "Consider using the project's established validation schema pattern seen in schemas.ts"
 - "This change is inconsistent with the testing approach in other test files"
 - "Following the project's convention, this should be in the /src/utils directory"
 
@@ -266,7 +327,9 @@ Generate a structured JSON review that reflects your understanding of:
 
 Remember: Your review should demonstrate that you understand this specific codebase, not just general programming principles.`;
 
-    console.log(`🔄 Generating structured review from ${analysisResult.length} character analysis...`);
+    console.log(
+      `🔄 Generating structured review from ${analysisResult.length} character analysis...`
+    );
 
     const result = await this.makeRetryingLLMCall(async () => {
       return this.provider.generateObject(structuredPrompt, reviewOutputSchema);
@@ -404,7 +467,7 @@ Remember: The goal is understanding the changes in context, not just finding iss
    */
   private async executeToolCall(toolCall: ToolCall): Promise<string> {
     const { toolName, args } = toolCall;
-    
+
     try {
       switch (toolName) {
         case 'read_file':
@@ -428,39 +491,45 @@ Remember: The goal is understanding the changes in context, not just finding iss
    */
   private extractConversationFromSteps(result: any): string {
     console.log(`🔍 Extracting conversation from AI SDK v5 result...`);
-    
+
     // Log all available properties for debugging
     console.log(`🔍 Available result properties:`, Object.keys(result));
     if (result.steps) {
       console.log(`📋 Steps available: ${result.steps.length}`);
     }
-    
-    let conversationSummary = "# AI Analysis Conversation Summary\n\n";
-    
+
+    let conversationSummary = '# AI Analysis Conversation Summary\n\n';
+
     // If we have steps, extract the conversation flow
     if (result.steps && result.steps.length > 0) {
-      conversationSummary += "## Multi-Step Analysis History\n";
+      conversationSummary += '## Multi-Step Analysis History\n';
       result.steps.forEach((step: any, i: number) => {
         console.log(`📋 Step ${i}: keys=${Object.keys(step)}`);
         conversationSummary += `\n### Step ${i + 1}\n`;
-        
+
         // Extract content from this step
         if (step.content && typeof step.content === 'string') {
           conversationSummary += `**AI Response**: ${step.content.substring(0, 500)}${step.content.length > 500 ? '...' : ''}\n\n`;
         } else if (step.content && Array.isArray(step.content)) {
           step.content.forEach((contentItem: any, j: number) => {
-            if (contentItem && contentItem.type === 'text' && contentItem.text && typeof contentItem.text === 'string') {
+            if (
+              contentItem &&
+              contentItem.type === 'text' &&
+              contentItem.text &&
+              typeof contentItem.text === 'string'
+            ) {
               conversationSummary += `**AI Text ${j + 1}**: ${contentItem.text.substring(0, 300)}${contentItem.text.length > 300 ? '...' : ''}\n\n`;
             }
           });
         }
-        
+
         // Extract reasoning if available
         if (step.reasoning) {
-          const reasoningText = typeof step.reasoning === 'string' ? step.reasoning : JSON.stringify(step.reasoning);
+          const reasoningText =
+            typeof step.reasoning === 'string' ? step.reasoning : JSON.stringify(step.reasoning);
           conversationSummary += `**Reasoning**: ${reasoningText.substring(0, 300)}${reasoningText.length > 300 ? '...' : ''}\n\n`;
         }
-        
+
         // Extract tool calls from this step
         if (step.toolCalls && step.toolCalls.length > 0) {
           conversationSummary += `**Tools Called (${step.toolCalls.length})**:\n`;
@@ -469,13 +538,16 @@ Remember: The goal is understanding the changes in context, not just finding iss
           });
           conversationSummary += '\n';
         }
-        
+
         // Extract tool results from this step
         if (step.toolResults && step.toolResults.length > 0) {
           conversationSummary += `**Tool Results (${step.toolResults.length})**:\n`;
           step.toolResults.forEach((tr: any, j: number) => {
             if (tr && tr.result !== undefined) {
-              const resultPreview = typeof tr.result === 'string' ? tr.result.substring(0, 200) : JSON.stringify(tr.result).substring(0, 200);
+              const resultPreview =
+                typeof tr.result === 'string'
+                  ? tr.result.substring(0, 200)
+                  : JSON.stringify(tr.result).substring(0, 200);
               conversationSummary += `- Result ${j + 1}: ${resultPreview}${resultPreview.length >= 200 ? '...' : ''}\n`;
             }
           });
@@ -483,7 +555,7 @@ Remember: The goal is understanding the changes in context, not just finding iss
         }
       });
     }
-    
+
     // Add information about tool calls that were made
     if (result.toolCalls && result.toolCalls.length > 0) {
       conversationSummary += `\n## Tools Used (${result.toolCalls.length} total)\n`;
@@ -491,43 +563,51 @@ Remember: The goal is understanding the changes in context, not just finding iss
         conversationSummary += `- ${tc.toolName}: ${JSON.stringify(tc.args || tc.input)}\n`;
       });
     }
-    
+
     // Add final content and reasoning from the root level
     if (result.content && typeof result.content === 'string') {
       conversationSummary += `\n## Final AI Analysis\n${result.content}\n`;
     } else if (result.content && Array.isArray(result.content)) {
       conversationSummary += `\n## Final AI Analysis\n`;
       result.content.forEach((contentItem: any) => {
-        if (contentItem && contentItem.type === 'text' && contentItem.text && typeof contentItem.text === 'string') {
+        if (
+          contentItem &&
+          contentItem.type === 'text' &&
+          contentItem.text &&
+          typeof contentItem.text === 'string'
+        ) {
           conversationSummary += `${contentItem.text}\n\n`;
         }
       });
     }
-    
+
     if (result.reasoning) {
-      const reasoningText = typeof result.reasoning === 'string' ? result.reasoning : JSON.stringify(result.reasoning);
+      const reasoningText =
+        typeof result.reasoning === 'string' ? result.reasoning : JSON.stringify(result.reasoning);
       conversationSummary += `\n## AI Reasoning\n${reasoningText}\n`;
     }
-    
+
     if (result.toolResults && result.toolResults.length > 0) {
       conversationSummary += `\n## Final Tool Results (${result.toolResults.length})\n`;
       result.toolResults.forEach((tr: any) => {
         if (tr && tr.result !== undefined) {
-          const resultPreview = typeof tr.result === 'string' ? tr.result.substring(0, 300) : JSON.stringify(tr.result).substring(0, 300);
+          const resultPreview =
+            typeof tr.result === 'string'
+              ? tr.result.substring(0, 300)
+              : JSON.stringify(tr.result).substring(0, 300);
           conversationSummary += `- ${tr.toolName || 'Tool'} Result: ${resultPreview}${resultPreview.length >= 300 ? '...' : ''}\n`;
         }
       });
     }
-    
+
     // Add any direct text response (fallback)
     if (result.text && result.text.trim()) {
       conversationSummary += `\n## Direct Response Text\n${result.text}\n`;
     }
-    
+
     console.log(`📝 Generated conversation summary: ${conversationSummary.length} characters`);
     return conversationSummary;
   }
-
 
   private formatAnalysisResult(messages: Message[], finalResponse: string): string {
     return `# Code Analysis Complete
@@ -572,5 +652,77 @@ Analysis completed using AI SDK v5 with automatic tool execution.`;
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Estimate token count for a given text
+   * Uses OpenAI's rule of thumb: ~4 characters per token
+   */
+  private estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
+  }
+
+  /**
+   * Compress message history to manage context window
+   * Keeps: diff, all LLM analysis, most recent tool batch, user guidance
+   * Compresses: older tool results into brief summaries
+   */
+  private compressMessageHistory(messages: Message[]): Message[] {
+    if (messages.length <= 6) return messages;
+
+    const compressed: Message[] = [];
+    let toolResultsSummary = '';
+    let lastAssistantIndex = -1;
+
+    // Find the last assistant message (to identify most recent batch)
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg && msg.role === 'assistant') {
+        lastAssistantIndex = i;
+        break;
+      }
+    }
+
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (!msg) continue; // Skip undefined messages
+
+      // Always keep first message (has the diff)
+      if (i === 0) {
+        compressed.push(msg);
+        continue;
+      }
+
+      // Keep all assistant messages intact
+      if (msg.role === 'assistant') {
+        compressed.push(msg);
+        continue;
+      }
+
+      // For user messages with tool results
+      if (msg.role === 'user' && msg.content.includes('Tool results:')) {
+        // Keep if it's after the last assistant message (most recent batch)
+        if (i > lastAssistantIndex) {
+          compressed.push(msg);
+        } else {
+          // Compress older tool results
+          const toolMatches = msg.content.match(/Tool (\w+) result:/g) || [];
+          toolResultsSummary += toolMatches.map((m) => m.replace(' result:', '')).join(', ') + '; ';
+        }
+      } else {
+        // Keep other user messages
+        compressed.push(msg);
+      }
+    }
+
+    // Add summary of compressed tools if any
+    if (toolResultsSummary) {
+      compressed.splice(1, 0, {
+        role: 'user',
+        content: `[Earlier explorations: ${toolResultsSummary}Results available if needed.]`,
+      });
+    }
+
+    return compressed;
   }
 }
